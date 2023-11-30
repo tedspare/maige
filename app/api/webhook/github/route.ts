@@ -1,5 +1,5 @@
 import {App} from '@octokit/app'
-import maige from '~/agents/maige'
+import engineer from '~/agents/engineer'
 import {GITHUB} from '~/constants'
 import prisma from '~/prisma'
 import {stripe} from '~/stripe'
@@ -325,11 +325,6 @@ First, some context:
 Repo owner: ${owner}.
 Repo name: ${name}.
 Repo description: ${repoDescription}.
-All repo labels: ${allLabels
-			.map(
-				({name, description}) => `${name}: ${description?.replaceAll(';', ',')}`
-			)
-			.join('; ')}.
 Issue ID: ${issueId}.
 Issue number: ${issueNumber}.
 Issue title: ${title}.
@@ -339,7 +334,7 @@ Your instructions: ${instructions}.
 ${isComment ? `Comment by @${comment.user.login}: ${comment?.body}.` : ''}
 `.replaceAll('\n', ' ')
 
-		await maige({
+		await engineer({
 			input: engPrompt,
 			octokit,
 			prisma,

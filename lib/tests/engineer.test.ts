@@ -6,31 +6,92 @@ import env from '~/env.mjs'
 import exec from '~/tools/exec'
 
 test('Bun test runner', () => {
-	// This is arbitrary. Could just return true.
 	expect(Bun.version).toInclude('1.0')
 })
 
-test.skip(
-	'GH CLI',
+test('Sandbox filesystem', async () => {
+	const shell = await Sandbox.create({
+		apiKey: env.E2B_API_KEY,
+		id: 'base',
+		onStderr: data => console.error(data.line),
+		onStdout: data => console.log(data.line)
+	})
+
+	// Get current directory
+	const pwd = await shell.process.start({cmd: 'pwd'})
+	await pwd.wait()
+
+	const {output: pwdOutput} = pwd as any
+
+	expect(pwdOutput.messages[0].line).toInclude('/home/user')
+
+	// List files
+	const cd = await shell.process.start({cmd: 'ls -a'})
+	await cd.wait()
+
+	const {output: cdOutput} = cd as any
+
+	expect(cdOutput.messages.length).toBeGreaterThan(5)
+
+	// Create a directory
+	const mkdir = await shell.process.start({cmd: 'mkdir temp && cd temp && pwd'})
+	await mkdir.wait()
+
+	const {output: mkdirOutput} = mkdir as any
+
+	expect(mkdirOutput.messages[0].line).toInclude('/home/user/temp')
+
+	await shell.close()
+})
+
+test(
+	'Sandbox git',
 	async () => {
 		const shell = await Sandbox.create({
 			apiKey: env.E2B_API_KEY,
-			id: 'Nodejs'
+			id: 'base',
+			onStderr: data => console.error(data.line),
+			onStdout: data => console.log(data.line)
 		})
 
 		const cli = await exec({
-			description:
-				'Executes a shell command with the GH CLI installed and logged in',
-			name: 'gh_cli',
-			setupCmd: `sudo apt install gh && gh auth login --with-token <<< "${env.GITHUB_ACCESS_TOKEN}"`,
-			shell
+			description: '',
+			name: '',
+			setupCmd: `git config --global user.email "${env.GITHUB_EMAIL}" && git config --global user.name "${env.GITHUB_USERNAME}"`,
+			shell,
+			preCmdCallback: (cmd: string) => {
+				const tokenB64 = btoa(`pat:${env.GITHUB_ACCESS_TOKEN}`)
+				const authFlag = `-c http.extraHeader="AUTHORIZATION: basic ${tokenB64}"`
+
+				// Replace only first occurrence to avoid prompt injection
+				// Otherwise "git log && echo 'git '" would print the token
+				return cmd.replace('git ', `git ${authFlag} `)
+			}
 		})
 
-		const authStatus = await cli.func({cmd: 'gh auth status'})
+		// Clone repo from GitHub
+		const clone = await cli.func({
+			cmd: 'git clone https://github.com/tedspare/maige.git'
+		})
 
-		expect(authStatus).toInclude('Logged in to github.com')
+		const cloneOutput = JSON.parse(clone)
+
+		expect(cloneOutput.messages[0].line).toInclude("Cloning into 'maige'...")
+
+		// List files in cloned repo
+		const ls = await cli.func({
+			cmd: 'cd maige && ls -a'
+		})
+
+		const lsOutput = JSON.parse(ls)
+
+		expect(lsOutput.messages.map(({line}) => line).join(', ')).toInclude(
+			'package.json'
+		)
+
+		await shell.close()
 	},
-	15 * 1000 // extend default 5s timeout
+	15 * 1000 // override default timeout
 )
 
 test('SERP API', async () => {

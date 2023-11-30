@@ -3,10 +3,10 @@ import {initializeAgentExecutorWithOptions} from 'langchain/agents'
 import {ChatOpenAI} from 'langchain/chat_models/openai'
 import {SerpAPI} from 'langchain/tools'
 import env from '~/env.mjs'
+import {codebaseSearch} from '~/tools/codeSearch'
 import commentTool from '~/tools/comment'
 import execTool from '~/tools/exec'
 import githubTool from '~/tools/github'
-import updateInstructionsTool from '~/tools/updateInstructions'
 import {isDev} from '~/utils'
 
 const model = new ChatOpenAI({
@@ -30,7 +30,7 @@ export default async function engineer({
 }) {
 	const shell = await Sandbox.create({
 		apiKey: env.E2B_API_KEY,
-		id: 'Nodejs',
+		id: 'base',
 		onStderr: data => console.error(data.line),
 		onStdout: data => console.log(data.line)
 	})
@@ -38,8 +38,8 @@ export default async function engineer({
 	const tools = [
 		new SerpAPI(),
 		commentTool({octokit}),
-		updateInstructionsTool({octokit, prisma, customerId, repoName}),
 		githubTool({octokit}),
+		codebaseSearch({customerId, repoName}),
 		execTool({
 			name: 'shell',
 			description: 'Executes a shell command.',
@@ -62,10 +62,11 @@ export default async function engineer({
 		})
 	]
 
-	const prefix = `You are a senior AI engineer.
+	const prefix = `You are a 100x AI engineer.
 You use the internet, shell, and git to solve problems.
-You like to read the docs.
-Only use necessary tools.
+You recover flexibly from errors.
+You follow instructions without taking them too literally.
+You obey the 3 laws of robotics.
 {agent_scratchpad}
 `.replaceAll('\n', ' ')
 
