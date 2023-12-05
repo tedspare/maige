@@ -5,7 +5,7 @@ import {addComment} from '~/utils/github'
 /**
  * Comment on an issue
  */
-export default function pr_comment({
+export default function prComment({
 	octokit,
 	pullId
 }: {

@@ -2,7 +2,7 @@ import {initializeAgentExecutorWithOptions} from 'langchain/agents'
 import {ChatOpenAI} from 'langchain/chat_models/openai'
 import {SerpAPI} from 'langchain/tools'
 import env from '~/env.mjs'
-import pr_comment from '~/tools/prComment'
+import prComment from '~/tools/prComment'
 import {isDev} from '~/utils'
 
 const model = new ChatOpenAI({
@@ -20,7 +20,7 @@ export default async function reviewer({
 	octokit: any
 	pullId: string
 }) {
-	const tools = [new SerpAPI(), pr_comment({octokit, pullId})]
+	const tools = [new SerpAPI(), prComment({octokit, pullId})]
 
 	const prefix = `
 	You are senior engineer reviewing a Pull Request in GitHub made by a junior engineer.
