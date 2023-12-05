@@ -1,5 +1,6 @@
 import {App} from '@octokit/app'
 import maige from '~/agents/maige'
+import reviewer from '~/agents/reviewer'
 import {GITHUB} from '~/constants'
 import prisma from '~/prisma'
 import {stripe} from '~/stripe'
@@ -9,7 +10,7 @@ import Weaviate from '~/utils/embeddings/db'
 import {getMainBranch, openUsageIssue} from '~/utils/github'
 import {incrementUsage} from '~/utils/payment'
 
-export const maxDuration = 30
+export const maxDuration = 15
 
 /**
  * POST /api/webhook
@@ -255,6 +256,32 @@ export const POST = async (req: Request) => {
 
 	await incrementUsage(prisma, owner)
 
+	try {
+		if (payload?.issue.pull_request) {
+			console.log('Analyzing PR')
+
+			const response = await fetch(payload?.issue.pull_request.diff_url, {
+				method: 'GET'
+			})
+
+			if (!response.ok)
+				return new Response('Could not fetch PR changes', {status: 401})
+
+			const data = await response.text()
+
+			await reviewer({
+				octokit: octokit,
+				input: `Instruction: ${comment?.body}\n\nPR Diff:\n${data}`,
+				pullId: issueId
+			})
+
+			return new Response('ok', {status: 200})
+		}
+	} catch (error) {
+		console.error(error)
+		return new Response(`Something went wrong: ${error}`, {status: 500})
+	}
+
 	/**
 	 * Repo commands
 	 */
@@ -344,7 +371,7 @@ ${isComment ? `Comment by @${comment.user.login}: ${comment?.body}.` : ''}
 			octokit,
 			prisma,
 			customerId,
-			repoName: name
+			repoName: `${owner}/${name}`
 		})
 
 		return new Response('ok', {status: 200})
